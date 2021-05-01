@@ -1,5 +1,8 @@
-from requests import get
+from requests import get, post
 from urllib3 import disable_warnings, exceptions
+from sys import argv
+from xlsxwriter import Workbook
+
 
 class get_swab_result:
     """
@@ -30,32 +33,65 @@ class get_swab_result:
     run() -> bool
         That method initialize the crawler and feed __get_results__ with id. Returns True if run all data with success or False if an issue occurs.
     save_output(name: str) -> None
-        That method save collected data from the crawler into a csv file.
+        That method save collected data from the crawler into an excel file.
     load_ids() -> tuple
         That method will return a tuple generated from a file that contains a list of ids separated with a break line.
     load_cookie() -> str
         That method will get the PHPSESSID cookie with the user.
     """
-    __header_paciente: dict =  {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0","Accept": "*/*","Accept-Language":"pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3","Referer": "https://gal.riodejaneiro.sus.gov.br/bmh/consulta-paciente-laboratorio/","X-Requested-With": "XMLHttpRequest","Connection": "keep-alive","Pragma": "no-cache","Cache-Control": "no-cache"}
-    __header_result: dict = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0","Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8","Accept-Language": "pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3","Accept-Encoding": "gzip, deflate, br","Connection": "keep-alive","Referer": "https://gal.riodejaneiro.sus.gov.br/bmh/consulta-paciente-laboratorio/","Upgrade-Insecure-Requests": "1"}
+    __header_paciente: dict = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0", "Accept": "*/*",
+        "Accept-Language": "pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3",
+        "Referer": "https://gal.riodejaneiro.sus.gov.br/bmh/consulta-paciente-laboratorio/",
+        "X-Requested-With": "XMLHttpRequest", "Connection": "keep-alive", "Pragma": "no-cache",
+        "Cache-Control": "no-cache"}
+    __header_result: dict = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3", "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive", "Referer": "https://gal.riodejaneiro.sus.gov.br/bmh/consulta-paciente-laboratorio/",
+        "Upgrade-Insecure-Requests": "1"}
     __result: list = []
     __ids: tuple = ()
 
+    class CookieException(ValueError):
+        """ That error will occur when a set cookie isn't valid. """
+        pass
 
-    def __init__(self: object, ids: tuple = None, PHPSESSID: str = None) -> object:
+    def __init__(self: object, load: bool = False, init_date: str = None, end_date: str = None, unidade: str = None,
+                 PHPSESSID: str = None) -> object:
         """
-        Constructs all the necessary attributes for the person object.
+        Constructs all the necessary attributes for the crawler object.
 
         Parameters
         ----------
-            ids: tuple, optional
-                A tuple that contains a list of ips, but isn't required.
+            load: bool
+                That variable needs to set as True if you want to load a file that contains a list of ids or if you want to set the id list using the constructor.
+            init_date: str, optional
+                That variable is required if the load is set as False, otherwise will return an error message. The input format expected is "dd/mm/YYYY". That variable represents the beginning of the range of dates.
+            end_date: str, optional
+                That variable is required if the load is set as False, otherwise will return an error message. The input format expected is "dd/mm/YYYY". That variable represents the ending of the range of dates.
+            unidade: str, optional
+                That variable will be used to filter the id list by health unit which collected the RT-PCR exam.
             PHPSESSID: str, optional
                 A string that contains a session cookie from GAL.
         """
-        self.__header_result['Cookie'] = self.__header_paciente['Cookie'] = f"PHPSESSID={PHPSESSID}" if PHPSESSID else self.load_cookie()
-        self.__ids = ids if ids else self.load_ids()
         disable_warnings(exceptions.InsecureRequestWarning)
+        self.__header_result['Cookie'] = self.__header_paciente[
+            'Cookie'] = f"PHPSESSID={PHPSESSID}" if PHPSESSID else self.load_cookie()
+
+        if load:
+            self.__ids = self.load_ids()
+
+        elif init_date and end_date:
+            check = self.list_generate(init_date, end_date, unidade)
+            if not check:
+                raise self.CookieException(
+                    "That cookie isn't a valid cookie. Please, get a new cookie in the application and run again that code.")
+
+        else:
+            raise ValueError(
+                "If you don't wish to load ids from a file or set it, please set an initial date and an end date.")
 
     @property
     def result(self: object) -> tuple:
@@ -64,34 +100,87 @@ class get_swab_result:
         """
         return tuple(self.__result)
 
+    def list_generate(self: object, init: str, end: str, unidade: str = None) -> bool:
+        """
+        That function will search into GAL to generate a list of ids that satisfy the following query:
+            - The RT-PCR should be collected in the range created by init(initial date) and end(final date);
+            - The RT-PCR should be collected into an informed unit(unidade). But that parameter is doesn't require.;
+        
+        Parameters
+        ----------
+            init: str
+                That variable represents the initial date. Expect the following format: dd/mm/yyyy
+            end: str
+                That variable represents the final date. Expect the following format: dd/mm/yyyy
+            unidade: str, optional
+                That variable may contain the health unit which collected the RT-PCR.
+        """
+        # Setting the headers to send the request.
+        post_header = {"Referer": "https://gal.riodejaneiro.sus.gov.br/bmh/consulta-exame-laboratorio/",
+                       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                       "Accept-Language": "pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3",
+                       "User-Agent": self.__header_paciente['User-Agent'],
+                       "Origin": "https://gal.riodejaneiro.sus.gov.br",
+                       "Cookie": self.__header_paciente['Cookie'],
+                       "Accept-Encoding": "gzip, deflate, br",
+                       "Host": "gal.riodejaneiro.sus.gov.br",
+                       "X-Requested-With": "XMLHttpRequest",
+                       "Cache-Control": "no-cache",
+                       "Connection": "keep-alive",
+                       "Pragma": "no-cache",
+                       "Accept": "*/*"}
 
-    def __get_results__(self: object, id: str) -> tuple:
+        # Preparing the body of post request.
+        body = f"method=post&start=0&exame=&status=&cancelado=true&dtInicio=%22{'-'.join(init.split('/')[::-1])}T00%3A00%3A00%22&dtFim=%22{'-'.join(end.split('/')[::-1])}T00%3A00%3A00%22"
+        req_filter = f"&filter%5B0%5D%5Bfield%5D=unidade&filter%5B0%5D%5Bdata%5D%5Btype%5D=string&filter%5B0%5D%5Bdata%5D%5Bvalue%5D={unidade.replace(' ', '%20')}"
+        body += req_filter if unidade else ''
+
+        # Making the request
+        url = "https://gal.riodejaneiro.sus.gov.br/bmh/consulta-exame-laboratorio/lista/"
+        response = post(url, data=body, headers=post_header, verify=False).json()
+        if 'message' in response.keys():
+            if response['message'] == "O usuário não está autenticado ou a sessão expirou":
+                message = "The informed Cookie is not a valid Cookie. Please, open your GAL account and get your \
+                           PHPSESSID Cookie before continue."
+                print(f"\n{'-'*len(message)}\n{message}\n{'-'*len(message)}")
+                self.__ids = ()
+                return False
+
+        # Saving the returned data from GAL.
+        self.__ids = tuple(str(i['requisicao']) for i in response['dados'] if i["status"] == "Resultado Liberado")
+        message = f"| {len(self.__ids)} ids have been found between {init} and {end} for the unit {unidade.title() if unidade else 'Geral'} |"
+        print(f"\n{'-' * len(message)}\n{message}\n{'-' * len(message)}\n")
+        return True
+
+    def __get_results__(self: object, req_id: str) -> tuple:
         """
         That internal method will send two requests to GAL and will 
         
         Parameters
         ----------
-            id: str
+            req_id: str
                 A string that contains the exam id into GAL.
         """
-        url_paciente = f"https://gal.riodejaneiro.sus.gov.br/bmh/consulta-paciente-laboratorio/carregar/?requisicao={id}"
-        url_result = f'https://gal.riodejaneiro.sus.gov.br/bmh/consulta-paciente-laboratorio/imprimir-resultado/?requisicoes=["{id}"]'
+        url_paciente = f"https://gal.riodejaneiro.sus.gov.br/bmh/consulta-paciente-laboratorio/carregar/?requisicao={req_id}"
+        url_result = f'https://gal.riodejaneiro.sus.gov.br/bmh/consulta-paciente-laboratorio/imprimir-resultado/?requisicoes=["{req_id}"]'
         paciente = get(url_paciente, headers=self.__header_paciente, verify=False).json()
         result = get(url_result, headers=self.__header_result, verify=False).text
-        result = "Detectável" if result.count("<u>Detectável:</u>") else "Não Detectável" if result.count("<u>Não Detectável:</u>") else "Inconclusivo"
-        return_data =  (paciente['requisicao']['dataSolicitacao'],
-                        paciente['requisicao']['paciente']['nome'],
-                        paciente['requisicao']['paciente']['cns'],
-                        paciente['requisicao']['paciente']['cpf'],
-                        paciente['requisicao']['paciente']['dataNascimento'],
-                        paciente['requisicao']['paciente']['idadeComp'],
-                        paciente['requisicao']['paciente']['sexo'],
-                        str(paciente['requisicao']['paciente']['logradouro']) + ' ' + str(paciente['requisicao']['paciente']['numeroLogradouro']),
-                        paciente['requisicao']['paciente']['bairro'],
-                        paciente['requisicao']['paciente']['cep'],
-                        result)
-        return return_data
+        result = "Detectável" if result.count("<u>Detectável:</u>") else "Não Detectável" if result.count(
+            "<u>Não Detectável:</u>") else "Inconclusivo"
 
+        return_data = (paciente['requisicao']['dataSolicitacao'],
+                       paciente['requisicao']['paciente']['nome'],
+                       paciente['requisicao']['paciente']['cns'],
+                       paciente['requisicao']['paciente']['cpf'],
+                       paciente['requisicao']['paciente']['dataNascimento'],
+                       paciente['requisicao']['paciente']['idadeComp'],
+                       paciente['requisicao']['paciente']['sexo'],
+                       str(paciente['requisicao']['paciente']['logradouro']) + ' ' + str(
+                           paciente['requisicao']['paciente']['numeroLogradouro']),
+                       paciente['requisicao']['paciente']['bairro'],
+                       paciente['requisicao']['paciente']['cep'],
+                       result)
+        return return_data
 
     def clear(self: object) -> None:
         """
@@ -100,7 +189,6 @@ class get_swab_result:
         self.__result = []
         self.__ids = ()
 
-
     def run(self: object) -> bool:
         """
         That class will initialize the crawler and will feed the internal method __get_results__ which will return received data from GAL.
@@ -108,28 +196,33 @@ class get_swab_result:
         try:
             print("\nPlease, wait while the crawler's running...")
             for i in range(len(self.__ids)):
-                id = self.__ids[i]
-                self.__result.append(self.__get_results__(id))
+                req_id = self.__ids[i]
+                self.__result.append(self.__get_results__(req_id))
+        except KeyboardInterrupt:
+            print("The crawler has been stopped by the user.\n")
+            return False
         except:
             return False
         self.__result.sort(key=lambda x: x[0].split('/')[::-1])
         return True
 
-
     def save_output(self: object, name: str) -> None:
         """
-        That method will receive a name and will save a .csv file with that name which contains the received data from GAL.
+        That method will receive a name and will save in an Excel file with that name which contains the received data from GAL.
         
         Parameters
         ----------
             name: str
                 The name of the output file.
         """
-        output = [['Data Coleta', 'Nome do Paciente','CNS','CPF','Nascimento','Idade','Sexo','Endereço','Bairro','CEP','Resultado']]
+        output = [['Data Coleta', 'Nome do Paciente', 'CNS', 'CPF', 'Nascimento', 'Idade', 'Sexo', 'Endereço', 'Bairro',
+                   'CEP', 'Resultado']]
         output.extend(self.__result)
-        with open(f'{name}.csv', 'w') as file:
-            file.write("\n".join(';'.join(map(lambda x: str(x) if x else '',line)) for line in output))
+        with Workbook(f'{name}.xlsx') as workbook:
+            worksheet = workbook.add_worksheet("GAL Report")
 
+            for row_num, data in enumerate(output):
+                worksheet.write_row(row_num, 0, data)
 
     def load_ids(self: object) -> None:
         """
@@ -140,27 +233,43 @@ class get_swab_result:
             data = filter(bool, file.read().split('\n'))
         return tuple(data)
 
-
     def load_cookie(self: object) -> None:
         """
         That method will receive the PHPSESSID cookie from the user and will return it.
         """
-        PHPSESSID = input("Now, enter with the cookie(PHPSESSID) of your session on GAL(Gerenciador de Ambiente Laboratorial): ")
+        PHPSESSID = input(
+            "\nNow, enter with the cookie(PHPSESSID) of your session on GAL(Gerenciador de Ambiente Laboratorial): ")
         return f"PHPSESSID={PHPSESSID}"
 
 
+def askyesornot(message):
+    """
+    An auxiliary function to ask anything and await for y(yes) or n(no).
+    """
+    response = None
+    while not response:
+        response = input(f"{message} (y/n)").lower()
+        response = None if response not in ('y', 'n') else response
+        if response == 'y':
+            return True
+        elif response == 'n':
+            return False
+
+
 if __name__ == "__main__":
-    crawler = get_swab_result()
+    if len(argv) >= 3:
+        parameters = {"initDate": argv[1],
+                      "endDate": argv[2],
+                      "unidade": " ".join(argv[3:])}
+    else:
+        parameters = {"initDate": input("Please, set the initial date(use this format: dd/mm/yyyy):"),
+                      "endDate": input("Please, set the final date(use this format: dd/mm/yyyy):"),
+                      "unidade": input("If you want, set a health unit that collects the RT-PCR to filter the search:")}
+
+    crawler = get_swab_result(**parameters)
     if crawler.run():
         print("Success!! The spider caught all data! :)\n")
-        save = None
-        while save == None:
-            check = input("You want to save data? (y/n) ")
-            if check == 'y':
-                name = input("Choose a name for your output: ")
-                crawler.save_output(name)
-                break
-            elif check == 'n':
-                break
+        if askyesornot("You want to save data?"):
+            crawler.save_output(input("Choose a name for your output:"))
     else:
         print("Fail!! The spider has been killed! :(\n\n")
