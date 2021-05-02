@@ -74,19 +74,19 @@ The PHPSESSID is a very important cookie for that application. Otherwise, the cr
 Now, I'll show how you can get that precious cookie.
 
 ---
-First, you have to login into your GAL's account.
+#### - First, you have to login into your GAL's account.
 ![title](Images/gal_login.png)
 ---
 ---
-So, if you press F12 key, will appear an widget like that.
+#### - So, if you press F12 key, will appear an widget like that.
 ![title](Images/f12_key.png)
 ---
 ---
-Go to Console web(the second option) and input that command: document.cookie
+#### - Go to Console web(the second option) and input that command: document.cookie
 ![title](Images/console_web.png)
 ---
 ---
-Now, copy the cookie after the equal signal and feed the application.
+#### - Now, copy the cookie after the equal signal and feed the application.
 ![title](Images/get_cookie.png)
 ---
 
