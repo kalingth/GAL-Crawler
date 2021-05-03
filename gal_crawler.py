@@ -258,12 +258,12 @@ def askyesornot(message):
 
 if __name__ == "__main__":
     if len(argv) >= 3:
-        parameters = {"initDate": argv[1],
-                      "endDate": argv[2],
+        parameters = {"init_date": argv[1],
+                      "end_date": argv[2],
                       "unidade": " ".join(argv[3:])}
     else:
-        parameters = {"initDate": input("Please, set the initial date(use this format: dd/mm/yyyy):"),
-                      "endDate": input("Please, set the final date(use this format: dd/mm/yyyy):"),
+        parameters = {"init_date": input("Please, set the initial date(use this format: dd/mm/yyyy):"),
+                      "end_date": input("Please, set the final date(use this format: dd/mm/yyyy):"),
                       "unidade": input("If you want, set a health unit that collects the RT-PCR to filter the search:")}
 
     crawler = get_swab_result(**parameters)
