@@ -79,7 +79,6 @@ class get_swab_result:
         disable_warnings(exceptions.InsecureRequestWarning)
         self.__header_result['Cookie'] = self.__header_paciente[
             'Cookie'] = f"PHPSESSID={PHPSESSID}" if PHPSESSID else self.load_cookie()
-
         if load:
             self.__ids = self.load_ids()
 
@@ -189,13 +188,17 @@ class get_swab_result:
         self.__result = []
         self.__ids = ()
 
-    def run(self: object) -> bool:
+    def run(self: object, root: object = None, tkresponse: object = None) -> bool:
         """
         That class will initialize the crawler and will feed the internal method __get_results__ which will return received data from GAL.
         """
+        self.root = root
         try:
             print("\nPlease, wait while the crawler's running...")
             for i in range(len(self.__ids)):
+                if tkresponse:
+                    tkresponse['text'] = f"Coletando dados do paciente {i+1} de {len(self.__ids)}"
+                self.root.update() if self.root else None
                 req_id = self.__ids[i]
                 self.__result.append(self.__get_results__(req_id))
         except KeyboardInterrupt:
@@ -218,7 +221,8 @@ class get_swab_result:
         output = [['Data Coleta', 'Nome do Paciente', 'CNS', 'CPF', 'Nascimento', 'Idade', 'Sexo', 'Endereço', 'Bairro',
                    'CEP', 'Resultado']]
         output.extend(self.__result)
-        with Workbook(f'{name}.xlsx') as workbook:
+        name = name if '.xlsx' in name else f'{name}.xlsx'
+        with Workbook(name) as workbook:
             worksheet = workbook.add_worksheet("GAL Report")
 
             for row_num, data in enumerate(output):
