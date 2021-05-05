@@ -81,8 +81,8 @@ class get_swab_result:
         """
         disable_warnings(exceptions.InsecureRequestWarning)
         
-        self.__login = login
-        self.__passwd = password
+        self.user = login
+        self.passwd = password
         
         checker = self.login()
 
@@ -110,13 +110,12 @@ class get_swab_result:
             'X-Requested-With': 'XMLHttpRequest',
             'Accept': '*/*'}
         
-        get_login = f"https://gal.riodejaneiro.sus.gov.br/login/laboratorio/?login={self.__login}&senha={self.__passwd}&laboratorio=5670268&modulo=BMH&_dc=1620160954425"
+        get_login = f"https://gal.riodejaneiro.sus.gov.br/login/laboratorio/?login={self.user}&senha={self.passwd}&laboratorio=5670268&modulo=BMH&_dc=1620160954425"
         req_login = get(get_login, verify=False, headers=main_header)
         if req_login.json()["success"]:
             cookies = req_login.headers['Set-Cookie']
             self.__header_result['Cookie'] = self.__header_paciente['Cookie'] = cookies.split(';')[0]
             return True
-        print("Login Error")
         return False
 
 
