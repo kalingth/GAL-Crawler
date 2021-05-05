@@ -2,7 +2,6 @@ from requests import get, post
 from urllib3 import disable_warnings, exceptions
 from sys import argv
 from xlsxwriter import Workbook
-from time import sleep
 
 class get_swab_result:
     """
