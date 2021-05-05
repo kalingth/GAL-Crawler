@@ -39,6 +39,11 @@ class get_swab_result:
     load_cookie() -> str
         That method will get the PHPSESSID cookie with the user.
     """
+    __main_header: dict = {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': '*/*',
+        'Connection': 'Close'}
+    
     __header_paciente: dict = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0", "Accept": "*/*",
         "Accept-Language": "pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3",
@@ -58,14 +63,21 @@ class get_swab_result:
         """ That error will occur when a set cookie isn't valid. """
         pass
 
-    def __init__(self: object, load: bool = False, init_date: str = None, end_date: str = None, unidade: str = None,
-                 PHPSESSID: str = None) -> object:
+    class LoginException(SystemError):
+        pass
+
+    def __init__(self: object, login: str, password: str, load: bool = False,
+                    init_date: str = None, end_date: str = None, unidade: str = None) -> object:
         """
         Constructs all the necessary attributes for the crawler object.
 
         Parameters
         ----------
-            load: bool
+            login: str
+                User account for GAL.
+            password: str
+                User password for GAL.
+            load: bool, optional
                 That variable needs to set as True if you want to load a file that contains a list of ids or if you want to set the id list using the constructor.
             init_date: str, optional
                 That variable is required if the load is set as False, otherwise will return an error message. The input format expected is "dd/mm/YYYY". That variable represents the beginning of the range of dates.
@@ -73,12 +85,17 @@ class get_swab_result:
                 That variable is required if the load is set as False, otherwise will return an error message. The input format expected is "dd/mm/YYYY". That variable represents the ending of the range of dates.
             unidade: str, optional
                 That variable will be used to filter the id list by health unit which collected the RT-PCR exam.
-            PHPSESSID: str, optional
-                A string that contains a session cookie from GAL.
         """
         disable_warnings(exceptions.InsecureRequestWarning)
-        self.__header_result['Cookie'] = self.__header_paciente[
-            'Cookie'] = f"PHPSESSID={PHPSESSID}" if PHPSESSID else self.load_cookie()
+        
+        self.__login = login
+        self.__passwd = password
+        
+        checker = self.login()
+
+        if not checker:
+            raise self.LoginException("Invalid login parameters!")
+        
         if load:
             self.__ids = self.load_ids()
 
@@ -91,6 +108,18 @@ class get_swab_result:
         else:
             raise ValueError(
                 "If you don't wish to load ids from a file or set it, please set an initial date and an end date.")
+
+    def login(self: object) -> bool:
+        """
+        That method will receive the PHPSESSID cookie from the server using a pre-setted user account and password.
+        """
+        get_login = f"https://gal.riodejaneiro.sus.gov.br/login/laboratorio/?login={self.__login}&senha={self.__passwd}&laboratorio=5670268&modulo=BMH&_dc=1620160954425"
+        req_login = get(get_login, verify=False, headers=self.__main_header)
+        if req_login.json()["success"]:
+            self.__header_result['Cookie'] = req_login.headers['Set-Cookie'].split(';')[0].split('=')[1]
+            return True
+        return False
+
 
     @property
     def result(self: object) -> tuple:
@@ -237,13 +266,6 @@ class get_swab_result:
             data = filter(bool, file.read().split('\n'))
         return tuple(data)
 
-    def load_cookie(self: object) -> None:
-        """
-        That method will receive the PHPSESSID cookie from the user and will return it.
-        """
-        PHPSESSID = input(
-            "\nNow, enter with the cookie(PHPSESSID) of your session on GAL(Gerenciador de Ambiente Laboratorial): ")
-        return f"PHPSESSID={PHPSESSID}"
 
 
 def askyesornot(message):
