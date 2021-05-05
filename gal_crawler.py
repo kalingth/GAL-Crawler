@@ -2,7 +2,7 @@ from requests import get, post
 from urllib3 import disable_warnings, exceptions
 from sys import argv
 from xlsxwriter import Workbook
-
+from time import sleep
 
 class get_swab_result:
     """
@@ -39,19 +39,13 @@ class get_swab_result:
     load_cookie() -> str
         That method will get the PHPSESSID cookie with the user.
     """
-    __main_header: dict = {
-        'X-Requested-With': 'XMLHttpRequest',
-        'Accept': '*/*',
-        'Connection': 'Close'}
     
     __header_paciente: dict = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0", "Accept": "*/*",
         "Accept-Language": "pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3",
         "Referer": "https://gal.riodejaneiro.sus.gov.br/bmh/consulta-paciente-laboratorio/",
         "X-Requested-With": "XMLHttpRequest", "Connection": "keep-alive", "Pragma": "no-cache",
         "Cache-Control": "no-cache"}
     __header_result: dict = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:88.0) Gecko/20100101 Firefox/88.0",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3", "Accept-Encoding": "gzip, deflate, br",
         "Connection": "keep-alive", "Referer": "https://gal.riodejaneiro.sus.gov.br/bmh/consulta-paciente-laboratorio/",
@@ -113,11 +107,17 @@ class get_swab_result:
         """
         That method will receive the PHPSESSID cookie from the server using a pre-setted user account and password.
         """
+        main_header: dict = {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': '*/*'}
+        
         get_login = f"https://gal.riodejaneiro.sus.gov.br/login/laboratorio/?login={self.__login}&senha={self.__passwd}&laboratorio=5670268&modulo=BMH&_dc=1620160954425"
-        req_login = get(get_login, verify=False, headers=self.__main_header)
+        req_login = get(get_login, verify=False, headers=main_header)
         if req_login.json()["success"]:
-            self.__header_result['Cookie'] = req_login.headers['Set-Cookie'].split(';')[0].split('=')[1]
+            cookies = req_login.headers['Set-Cookie']
+            self.__header_result['Cookie'] = self.__header_paciente['Cookie'] = cookies.split(';')[0]
             return True
+        print("Login Error")
         return False
 
 
@@ -147,7 +147,6 @@ class get_swab_result:
         post_header = {"Referer": "https://gal.riodejaneiro.sus.gov.br/bmh/consulta-exame-laboratorio/",
                        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                        "Accept-Language": "pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3",
-                       "User-Agent": self.__header_paciente['User-Agent'],
                        "Origin": "https://gal.riodejaneiro.sus.gov.br",
                        "Cookie": self.__header_paciente['Cookie'],
                        "Accept-Encoding": "gzip, deflate, br",
@@ -284,11 +283,15 @@ def askyesornot(message):
 
 if __name__ == "__main__":
     if len(argv) >= 3:
-        parameters = {"init_date": argv[1],
-                      "end_date": argv[2],
-                      "unidade": " ".join(argv[3:])}
+        parameters = {"login":argv[1],
+                      "password":argv[2],
+                      "init_date": argv[3],
+                      "end_date": argv[4],
+                      "unidade": " ".join(argv[5:])}
     else:
-        parameters = {"init_date": input("Please, set the initial date(use this format: dd/mm/yyyy):"),
+        parameters = {"login": input("Please, insert your user account:"),
+                      "password": input("Please, insert your password account:"),
+                      "init_date": input("Please, set the initial date(use this format: dd/mm/yyyy):"),
                       "end_date": input("Please, set the final date(use this format: dd/mm/yyyy):"),
                       "unidade": input("If you want, set a health unit that collects the RT-PCR to filter the search:")}
 
