@@ -23,6 +23,10 @@ class get_swab_result:
     
     Methods
     -------
+    login() -> bool
+        That method will retrieve the PHPSESSID Cookie using the user/password auth set by the user. That Cookie is very important to use that application.
+    list_generate(init: str, end: str, unidade: str = None) -> bool
+        That method will, obligatory, receive an initial date and a final date and, optionally, a health unit. Will make a request and generate a list of ids based on the response to that request.
     result() -> tuple
         A method that return a tuple that contains the return obteined with run method.
     __get_results__(id: str) -> tuple
@@ -35,8 +39,6 @@ class get_swab_result:
         That method save collected data from the crawler into an excel file.
     load_ids() -> tuple
         That method will return a tuple generated from a file that contains a list of ids separated with a break line.
-    load_cookie() -> str
-        That method will get the PHPSESSID cookie with the user.
     """
     
     __header_paciente: dict = {
@@ -52,12 +54,10 @@ class get_swab_result:
     __result: list = []
     __ids: tuple = ()
 
-    class CookieException(ValueError):
-        """ That error will occur when a set cookie isn't valid. """
+
+    class LoginException(SystemError: object):
         pass
 
-    class LoginException(SystemError):
-        pass
 
     def __init__(self: object, login: str, password: str, load: bool = False,
                     init_date: str = None, end_date: str = None, unidade: str = None) -> object:
@@ -93,14 +93,12 @@ class get_swab_result:
             self.__ids = self.load_ids()
 
         elif init_date and end_date:
-            check = self.list_generate(init_date, end_date, unidade)
-            if not check:
-                raise self.CookieException(
-                    "That cookie isn't a valid cookie. Please, get a new cookie in the application and run again that code.")
+            self.list_generate(init_date, end_date, unidade)
 
         else:
             raise ValueError(
                 "If you don't wish to load ids from a file or set it, please set an initial date and an end date.")
+
 
     def login(self: object) -> bool:
         """
@@ -125,6 +123,7 @@ class get_swab_result:
         That property will return the internal attribute __result(get method).
         """
         return tuple(self.__result)
+
 
     def list_generate(self: object, init: str, end: str, unidade: str = None) -> bool:
         """
@@ -177,6 +176,7 @@ class get_swab_result:
         print(f"\n{'-' * len(message)}\n{message}\n{'-' * len(message)}\n")
         return True
 
+
     def __get_results__(self: object, req_id: str) -> tuple:
         """
         That internal method will send two requests to GAL and will 
@@ -207,12 +207,14 @@ class get_swab_result:
                        result)
         return return_data
 
+
     def clear(self: object) -> None:
         """
         That method will delete the data stored into internal attributes.
         """
         self.__result = []
         self.__ids = ()
+
 
     def run(self: object, root: object = None, tkresponse: object = None) -> bool:
         """
@@ -235,6 +237,7 @@ class get_swab_result:
         self.__result.sort(key=lambda x: x[0].split('/')[::-1])
         return True
 
+
     def save_output(self: object, name: str) -> None:
         """
         That method will receive a name and will save in an Excel file with that name which contains the received data from GAL.
@@ -253,6 +256,7 @@ class get_swab_result:
 
             for row_num, data in enumerate(output):
                 worksheet.write_row(row_num, 0, data)
+
 
     def load_ids(self: object) -> None:
         """
